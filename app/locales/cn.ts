@@ -56,6 +56,10 @@ const cn = {
       },
       Prompt: "快捷指令",
       Masks: "所有面具",
+      Audio: {
+        Title: "Enviar Audio",
+        Loading: "Subiendo audio...",
+      },
       Clear: "清除聊天",
       Settings: "对话设置",
     },
@@ -69,6 +73,11 @@ const cn = {
       return inputHints + "，/ 触发补全，: 触发命令";
     },
     Send: "发送",
+    Microphone: {
+      Normal: "Pulse para hablar",
+      Start: "Grabando...",
+      Loading: "Enviando grabación...",
+    },
     Config: {
       Reset: "清除记忆",
       SaveAs: "存为面具",

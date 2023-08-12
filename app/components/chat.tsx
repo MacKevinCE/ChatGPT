@@ -9,6 +9,7 @@ import React, {
 } from "react";
 
 import SendWhiteIcon from "../icons/send-white.svg";
+import MicrophoneIcon from "../icons/microphone.svg";
 import BrainIcon from "../icons/brain.svg";
 import RenameIcon from "../icons/rename.svg";
 import ExportIcon from "../icons/share.svg";
@@ -34,6 +35,7 @@ import AutoIcon from "../icons/auto.svg";
 import BottomIcon from "../icons/bottom.svg";
 import StopIcon from "../icons/pause.svg";
 import RobotIcon from "../icons/robot.svg";
+import FileAudioIcon from "../icons/file-audio.svg";
 
 import {
   ChatMessage,
@@ -373,6 +375,74 @@ function ChatAction(props: {
   );
 }
 
+function ChatFile(props: {
+  text: string;
+  icon: JSX.Element;
+  onFileSelected: (file: File) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const iconRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+
+  const [width, setWidth] = useState({
+    full: 16,
+    icon: 16,
+  });
+
+  const handleClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files && event.target.files[0];
+    if (file) {
+      props.onFileSelected(file);
+    }
+  };
+
+  function updateWidth() {
+    if (!iconRef.current || !textRef.current) return;
+    const getWidth = (dom: HTMLDivElement) => dom.getBoundingClientRect().width;
+    const textWidth = getWidth(textRef.current);
+    const iconWidth = getWidth(iconRef.current);
+    setWidth({
+      full: textWidth + iconWidth,
+      icon: iconWidth,
+    });
+  }
+
+  return (
+    <div
+      className={`${styles["chat-input-action"]} clickable`}
+      onMouseEnter={updateWidth}
+      onTouchStart={updateWidth}
+      onClick={handleClick}
+      style={
+        {
+          "--icon-width": `${width.icon}px`,
+          "--full-width": `${width.full}px`,
+        } as React.CSSProperties
+      }
+    >
+      <div ref={iconRef} className={styles["icon"]}>
+        {props.icon}
+      </div>
+      <div className={styles["text"]} ref={textRef}>
+        {props.text}
+      </div>
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        accept="audio/*"
+        onChange={handleFileSelected}
+      />
+    </div>
+  );
+}
+
 function useScrollToBottom() {
   // for auto-scroll
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -407,6 +477,7 @@ export function ChatActions(props: {
   showPromptModal: () => void;
   scrollToBottom: () => void;
   showPromptHints: () => void;
+  sendRecord: (file: File) => void;
   hitBottom: boolean;
 }) {
   const config = useAppConfig();
@@ -514,6 +585,12 @@ export function ChatActions(props: {
         icon={<RobotIcon />}
       />
 
+      <ChatFile
+        onFileSelected={props.sendRecord}
+        text={Locale.Chat.InputActions.Audio.Title}
+        icon={<FileAudioIcon />}
+      />
+
       {showModelSelector && (
         <Selector
           defaultSelectedValue={currentModel}
@@ -610,6 +687,7 @@ function _Chat() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [userInput, setUserInput] = useState("");
+  const [recordState, setRecordState] = useState(Locale.Chat.Microphone.Normal);
   const [isLoading, setIsLoading] = useState(false);
   const { submitKey, shouldSubmit } = useSubmitHandler();
   const { scrollRef, setAutoScroll, scrollDomToBottom } = useScrollToBottom();
@@ -684,6 +762,7 @@ function _Chat() {
   };
 
   const doSubmit = (userInput: string) => {
+    if (!(recordState === Locale.Chat.Microphone.Normal)) return;
     if (userInput.trim() === "") return;
     const matchCommand = chatCommands.match(userInput);
     if (matchCommand.matched) {
@@ -699,6 +778,28 @@ function _Chat() {
     setPromptHints([]);
     if (!isMobileScreen) inputRef.current?.focus();
     setAutoScroll(true);
+  };
+
+  const doRecord = (recordState: string) => {
+    if (recordState === Locale.Chat.Microphone.Normal) {
+      setRecordState(Locale.Chat.Microphone.Start);
+      chatStore
+        .startRecord((text) => {
+          if (userInput === "" || userInput.endsWith("\n")) {
+            setUserInput(userInput + text);
+          } else {
+            setUserInput(userInput + "\n" + text);
+          }
+          if (!isMobileScreen) inputRef.current?.focus();
+          setRecordState(Locale.Chat.Microphone.Normal);
+        })
+        .then(() => {});
+    } else if (recordState === Locale.Chat.Microphone.Start) {
+      setRecordState(Locale.Chat.Microphone.Loading);
+      chatStore.stopRecord().then(() => {});
+    } else {
+      setRecordState(Locale.Chat.Microphone.Normal);
+    }
   };
 
   const onPromptSelect = (prompt: RenderPompt) => {
@@ -1234,6 +1335,20 @@ function _Chat() {
             setUserInput("/");
             onSearch("");
           }}
+          sendRecord={(file: File) => {
+            const current = userInput;
+            setUserInput(Locale.Chat.InputActions.Audio.Loading);
+            chatStore
+              .getRecord(file, (text) => {
+                if (current === "" || current.endsWith("\n")) {
+                  setUserInput(current + text);
+                } else {
+                  setUserInput(current + "\n" + text);
+                }
+                if (!isMobileScreen) inputRef.current?.focus();
+              })
+              .then(() => {});
+          }}
         />
         <div className={styles["chat-input-panel-inner"]}>
           <textarea
@@ -1251,13 +1366,22 @@ function _Chat() {
               fontSize: config.fontSize,
             }}
           />
-          <IconButton
-            icon={<SendWhiteIcon />}
-            text={Locale.Chat.Send}
-            className={styles["chat-input-send"]}
-            type="primary"
-            onClick={() => doSubmit(userInput)}
-          />
+          <div className={styles["chat-input-group"]}>
+            <IconButton
+              icon={<MicrophoneIcon />}
+              text={recordState}
+              className={styles["chat-input-send"]}
+              type="primary"
+              onClick={() => doRecord(recordState)}
+            />
+            <IconButton
+              icon={<SendWhiteIcon />}
+              text={Locale.Chat.Send}
+              className={styles["chat-input-send"]}
+              type="primary"
+              onClick={() => doSubmit(userInput)}
+            />
+          </div>
         </div>
       </div>
 

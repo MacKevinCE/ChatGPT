@@ -83,6 +83,10 @@ function createEmptySession(): ChatSession {
 interface ChatStore {
   sessions: ChatSession[];
   currentSessionIndex: number;
+  getRecord: (file: File, complete: (text: string) => void) => Promise<void>;
+  startRecord: (complete: (text: string) => void) => Promise<void>;
+  stopRecord: () => Promise<void>;
+  rec: MediaRecorder | undefined;
   clearSessions: () => void;
   moveSession: (from: number, to: number) => void;
   selectSession: (index: number) => void;
@@ -139,6 +143,55 @@ export const useChatStore = create<ChatStore>()(
     (set, get) => ({
       sessions: [createEmptySession()],
       currentSessionIndex: 0,
+      rec: undefined,
+
+      async getRecord(file: File, complete: (text: string) => void) {
+        await api.llm.transcriptions(file).then((text) => {
+          complete(text);
+        });
+      },
+
+      async startRecord(complete: (text: string) => void) {
+        const blobs: BlobPart[] = [];
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        });
+        const rec = new MediaRecorder(stream);
+
+        rec.ondataavailable = (e) => {
+          if (e.data) {
+            blobs.push(e.data);
+          }
+        };
+
+        rec.onstop = () => {
+          if (blobs.length) {
+            const file = new File(blobs, "audio.mp3", { type: "audio/mp3" });
+            api.llm.transcriptions(file).then((text) => {
+              complete(text);
+            });
+            /*
+            const url = URL.createObjectURL(file);
+            const a = document.createElement('a');
+            document.body.appendChild(a);
+            a.style.display = 'none';
+            a.href = url;
+            a.download = file.name;
+            a.click();
+            window.URL.revokeObjectURL(url);
+             */
+          }
+        };
+
+        rec.start();
+        get().rec = rec;
+      },
+
+      async stopRecord() {
+        get().rec?.stop();
+      },
 
       clearSessions() {
         set(() => ({

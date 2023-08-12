@@ -1,5 +1,5 @@
 import {
-  DEFAULT_API_HOST,
+  BASE_URL,
   DEFAULT_MODELS,
   OpenaiPath,
   REQUEST_TIMEOUT_MS,
@@ -29,13 +29,10 @@ export class ChatGPTApi implements LLMApi {
   path(path: string): string {
     let openaiUrl = useAccessStore.getState().openaiUrl;
     if (openaiUrl.length === 0) {
-      openaiUrl = DEFAULT_API_HOST;
+      openaiUrl = BASE_URL;
     }
     if (openaiUrl.endsWith("/")) {
       openaiUrl = openaiUrl.slice(0, openaiUrl.length - 1);
-    }
-    if (!openaiUrl.startsWith("http") && !openaiUrl.startsWith("/api/openai")) {
-      openaiUrl = "https://" + openaiUrl;
     }
     return [openaiUrl, path].join("/");
   }
@@ -182,6 +179,30 @@ export class ChatGPTApi implements LLMApi {
       options.onError?.(e as Error);
     }
   }
+
+  async transcriptions(file: File) {
+    try {
+      const myHeaders = new Headers();
+      const accessStore = useAccessStore.getState();
+      myHeaders.append("Authorization", `Bearer ${accessStore.token.trim()}`);
+
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      console.log("file", formData.get("file"));
+      formData.append("model", "whisper-1");
+      formData.append("response_format", "text");
+      const response = await fetch(this.path(OpenaiPath.TranscriptionsPath), {
+        method: "POST",
+        body: formData,
+        headers: myHeaders,
+      });
+      return await response.text();
+    } catch (e) {
+      console.log("[Transcriptions]", e);
+      return "";
+    }
+  }
+
   async usage() {
     const formatDate = (d: Date) =>
       `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d

@@ -58,6 +58,11 @@ const en: LocaleType = {
       },
       Prompt: "Prompts",
       Masks: "Masks",
+      Audio: {
+        Title: "Enviar Audio",
+        Loading: "Subiendo audio...",
+      },
+      Volume: "Escuchar",
       Clear: "Clear Context",
       Settings: "Settings",
     },
@@ -71,6 +76,11 @@ const en: LocaleType = {
       return inputHints + ", / to search prompts, : to use commands";
     },
     Send: "Send",
+    Microphone: {
+      Normal: "Pulse para hablar",
+      Start: "Grabando...",
+      Loading: "Enviando grabación...",
+    },
     Config: {
       Reset: "Reset to Default",
       SaveAs: "Save as Mask",
